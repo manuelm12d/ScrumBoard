@@ -1,0 +1,19 @@
+## Configuracion local con secretos: nunca versionada (requisito 6.1)
+.env
+*.env.local
+
+## .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+*.user
+*.suo
+.vs/
+TestResults/
+
+## Herramientas
+.idea/
+.vscode/
+*.log
