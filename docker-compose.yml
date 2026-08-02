@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: scrumboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # La API aplica migraciones al arrancar: sin este healthcheck se conectaria
+      # antes de que Postgres acepte conexiones y el contenedor moriria.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: src/ScrumBoard.Api/Dockerfile
+    container_name: scrumboard-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: ${ConnectionStrings__Default}
+      Jwt__Issuer: ${Jwt__Issuer}
+      Jwt__Audience: ${Jwt__Audience}
+      Jwt__Key: ${Jwt__Key}
+      Jwt__ExpiresMinutes: ${Jwt__ExpiresMinutes}
+      Security__PasswordPepper: ${Security__PasswordPepper}
+      Cors__AllowedOrigins__0: ${Cors__AllowedOrigins__0}
+      Cors__AllowedOrigins__1: ${Cors__AllowedOrigins__1}
+    ports:
+      - "${API_PORT}:8080"
+
+volumes:
+  pgdata:
