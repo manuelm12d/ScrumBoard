@@ -1,0 +1,98 @@
+<p-toast />
+<p-confirmDialog />
+
+<div class="page-header">
+  <div>
+    <h1>Proyectos</h1>
+    <p>Gestiona los tableros ágiles de la organización.</p>
+  </div>
+  <button pButton type="button" label="Nuevo proyecto" icon="pi pi-plus" (click)="openCreate()"></button>
+</div>
+
+<div class="toolbar">
+  <span class="p-input-icon-left">
+    <i class="pi pi-search"></i>
+    <input
+      pInputText
+      [(ngModel)]="nameFilter"
+      placeholder="Filtrar por nombre"
+      (keyup.enter)="page = 1; load()"
+    />
+  </span>
+  <button pButton type="button" label="Buscar" icon="pi pi-search" class="p-button-outlined" (click)="page = 1; load()"></button>
+</div>
+
+<p-table
+  [value]="items"
+  [lazy]="true"
+  [paginator]="true"
+  [rows]="pageSize"
+  [totalRecords]="totalItems"
+  [loading]="loading"
+  [rowsPerPageOptions]="[5, 10, 20]"
+  (onPage)="onPage($event)"
+  styleClass="p-datatable-sm"
+>
+  <ng-template pTemplate="header">
+    <tr>
+      <th>Nombre</th>
+      <th>Estado</th>
+      <th>Inicio</th>
+      <th>Fin prevista</th>
+      <th style="width: 14rem">Acciones</th>
+    </tr>
+  </ng-template>
+  <ng-template pTemplate="body" let-project>
+    <tr>
+      <td>
+        <a [routerLink]="['/projects', project.id, 'board']" class="project-link">{{ project.name }}</a>
+        @if (project.description) {
+          <div class="muted">{{ project.description }}</div>
+        }
+      </td>
+      <td><p-tag [value]="statusLabel(project.status)" /></td>
+      <td>{{ project.startDate }}</td>
+      <td>{{ project.plannedEndDate || '—' }}</td>
+      <td class="actions">
+        <button pButton type="button" icon="pi pi-th-large" class="p-button-rounded p-button-text" [routerLink]="['/projects', project.id, 'board']" title="Tablero"></button>
+        <button pButton type="button" icon="pi pi-pencil" class="p-button-rounded p-button-text" (click)="openEdit(project)"></button>
+        <button pButton type="button" icon="pi pi-trash" class="p-button-rounded p-button-text p-button-danger" (click)="confirmDelete(project)"></button>
+      </td>
+    </tr>
+  </ng-template>
+  <ng-template pTemplate="emptymessage">
+    <tr>
+      <td colspan="5">No hay proyectos. Crea el primero para empezar.</td>
+    </tr>
+  </ng-template>
+</p-table>
+
+<p-dialog
+  [(visible)]="dialogVisible"
+  [header]="editing ? 'Editar proyecto' : 'Nuevo proyecto'"
+  [modal]="true"
+  [style]="{ width: '32rem' }"
+  [draggable]="false"
+>
+  <form [formGroup]="form" class="form-grid" (ngSubmit)="save()">
+    <label>Nombre</label>
+    <input pInputText formControlName="name" />
+
+    <label>Descripción</label>
+    <textarea pInputTextarea formControlName="description" rows="3"></textarea>
+
+    <label>Fecha de inicio</label>
+    <input pInputText type="date" formControlName="startDate" />
+
+    <label>Fin prevista</label>
+    <input pInputText type="date" formControlName="plannedEndDate" />
+
+    <label>Estado</label>
+    <p-dropdown [options]="statusOptions" formControlName="status" optionLabel="label" optionValue="value" />
+  </form>
+
+  <ng-template pTemplate="footer">
+    <button pButton type="button" label="Cancelar" class="p-button-text" (click)="dialogVisible = false"></button>
+    <button pButton type="button" label="Guardar" icon="pi pi-check" (click)="save()"></button>
+  </ng-template>
+</p-dialog>
