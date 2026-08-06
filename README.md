@@ -1,13 +1,13 @@
-# ScrumBoard — Backend (.NET 8)
+# ScrumBoard — Gestión ágil (Angular 17 + .NET 8)
 
-Backend del aplicativo de gestión de proyectos ágiles solicitado en la prueba técnica
+Aplicativo web de gestión de proyectos ágiles solicitado en la prueba técnica
 **IDEASGROUP-REM-LAT-26-2907**: proyectos, columnas configurables, tablero kanban con orden
 persistente, sincronización en tiempo real y reporte del proyecto en PDF y Excel.
 
-> **Estado actual del repositorio:** el backend está completo y verificado end to end
-> (API REST, JWT, SignalR, reportes, migraciones y Docker Compose). El SPA en Angular 17 con
-> PrimeNG/Sakai es la siguiente etapa; el `docker-compose.yml` incorporará su servicio con nginx
-> cuando exista, y la sección [Pendientes](#pendientes) detalla lo que falta.
+> **Estado:** solución completa. Backend hexagonal (.NET 8 + PostgreSQL + SignalR + QuestPDF/ClosedXML)
+> y SPA Angular 17 con PrimeNG (layout tipo Sakai). Docker Compose levanta base de datos, API y SPA
+> con nginx.
+
 
 ---
 
@@ -27,7 +27,8 @@ persistente, sincronización en tiempo real y reporte del proyecto en PDF y Exce
 - [Decisiones arquitectónicas](#decisiones-arquitectónicas)
 - [Solución de problemas](#solución-de-problemas)
 - [Uso de asistentes de inteligencia artificial](#uso-de-asistentes-de-inteligencia-artificial)
-- [Pendientes](#pendientes)
+- [Arquitectura del frontend](#arquitectura-del-frontend)
+- [Checklist de verificación](#checklist-de-verificación)
 
 ---
 
@@ -35,8 +36,9 @@ persistente, sincronización en tiempo real y reporte del proyecto en PDF y Exce
 
 | Herramienta | Versión | Necesaria para |
 |---|---|---|
-| Docker Desktop | 24 o superior | Arranque completo (base de datos + API) |
-| .NET SDK | 8.0 o superior | Solo para el modo desarrollo y las pruebas |
+| Docker Desktop | 24 o superior | Arranque completo (base de datos + API + SPA) |
+| .NET SDK | 8.0 o superior | Solo para el modo desarrollo y las pruebas del backend |
+| Node.js | 20 o superior | Solo para el modo desarrollo y las pruebas del frontend |
 | Git | cualquiera | Clonar el repositorio |
 
 La solución tiene como destino `net8.0`. Un SDK más reciente (9 o 10) también la compila porque el
@@ -57,25 +59,28 @@ docker compose up -d --build
 
 En Linux o macOS, `cp .env.example .env`.
 
-Eso levanta dos contenedores:
+Eso levanta tres contenedores:
 
 | Servicio | Contenedor | URL |
 |---|---|---|
 | PostgreSQL 16 | `scrumboard-db` | `localhost:5432` |
-| API .NET 8 | `scrumboard-api` | `http://localhost:8080` |
+| API .NET 8 | `scrumboard-api` | http://localhost:8080 |
+| SPA (nginx) | `scrumboard-web` | http://localhost:8081 |
 
 Comprobaciones inmediatas:
 
 ```powershell
-docker compose ps                                  # ambos servicios "Up", db "healthy"
+docker compose ps                                  # db healthy, api y web Up
 curl http://localhost:8080/health                  # {"status":"ok"}
+start http://localhost:8081                        # aplicativo web
 start http://localhost:8080/swagger                # documentación interactiva
 ```
 
 La API **aplica las migraciones al arrancar**, así que la base queda creada y con los usuarios
 semilla sin ningún paso adicional. El servicio `api` declara `depends_on: condition: service_healthy`
 contra el `healthcheck` de Postgres: sin eso el contenedor intentaría migrar antes de que la base
-acepte conexiones.
+acepte conexiones. El SPA se construye en imagen multi-stage (Node → nginx) y el navegador llama a
+la API en `http://localhost:8080` (origen permitido en CORS).
 
 Para detener sin perder datos, `docker compose down`. Para volver a un entorno limpio de verdad,
 `docker compose down -v` (elimina el volumen `pgdata`).
@@ -84,21 +89,31 @@ Para detener sin perder datos, `docker compose down`. Para volver a un entorno l
 
 ## Arranque en modo desarrollo
 
-Base de datos en Docker y API en el host, que es lo cómodo para depurar:
+Base de datos en Docker, API y SPA en el host:
 
 ```powershell
 Copy-Item .env.example .env
 docker compose up -d db
 dotnet restore
-dotnet tool restore                                # instala dotnet-ef 8 desde .config/dotnet-tools.json
+dotnet tool restore
 dotnet ef database update --project src/ScrumBoard.Infrastructure --startup-project src/ScrumBoard.Api
 dotnet run --project src/ScrumBoard.Api --urls http://localhost:5080
+```
+
+En otra terminal:
+
+```powershell
+cd frontend
+npm install
+npm start
+# http://localhost:4200  (proxy hacia :5080 en proxy.conf.json)
 ```
 
 No hace falta exportar variables a mano: al arrancar fuera de un contenedor la API lee el archivo
 `.env` de la raíz y, al detectar que no corre en Docker, usa `ConnectionStrings__DefaultLocal`
 (`Host=localhost`) en lugar de `ConnectionStrings__Default` (`Host=db`). Las variables ya presentes
-en el entorno siempre tienen prioridad sobre el archivo.
+en el entorno siempre tienen prioridad sobre el archivo. El SPA lee `apiBaseUrl` / `hubUrl` solo
+desde `frontend/src/environments/`.
 
 ---
 
@@ -112,6 +127,7 @@ Toda la configuración sensible vive en `.env`, que está en `.gitignore`. El re
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | Credenciales del contenedor de Postgres |
 | `POSTGRES_PORT` | Puerto publicado en el host (cámbialo a `5433` si ya tienes Postgres local) |
 | `API_PORT` | Puerto publicado de la API (por defecto `8080`) |
+| `WEB_PORT` | Puerto publicado del SPA nginx (por defecto `8081`) |
 | `ConnectionStrings__Default` | Cadena usada dentro de Compose (`Host=db`) |
 | `ConnectionStrings__DefaultLocal` | Cadena usada al ejecutar la API en el host (`Host=localhost`) |
 | `Jwt__Issuer` / `Jwt__Audience` | Emisor y audiencia validados en cada token |
@@ -306,6 +322,8 @@ constantes (identificadores y fecha fijos) porque `HasData` exige datos determin
 
 ## Pruebas automatizadas
 
+### Backend
+
 ```powershell
 dotnet test
 ```
@@ -321,6 +339,16 @@ dotnet test
 | `BoardColumnServiceTests` | Regla de negocio de borrado, reordenamiento y alta al final |
 | `BoardColumnTests` / `ProjectTests` | Invariantes del dominio |
 | `PasswordHashingTests` | Salt distinto por hash, verificación, aislamiento por pepper y validez de las credenciales semilla |
+
+### Frontend
+
+```powershell
+cd frontend
+npm test
+```
+
+11 pruebas Jasmine/Karma, entre ellas el cálculo de vecinos al reordenar (`resolveDropNeighbors`),
+el movimiento optimista del tablero, el `authGuard` y el interceptor Bearer.
 
 ---
 
@@ -452,25 +480,50 @@ registrados.
 **Sí se utilizaron.** Declaración conforme a las reglas del reto:
 
 - **Herramienta:** Cursor (agente de codificación).
-- **En qué se usó:** generación del andamiaje de la solución y de los proyectos, redacción inicial de
+- **En qué se usó (backend):** generación del andamiaje de la solución y de los proyectos, redacción inicial de
   clases repetitivas (configuraciones de EF Core, repositorios, controladores, DTOs), borrador de las
   pruebas unitarias, la colección de Postman y la redacción de este README.
+- **En qué se usó (frontend):** scaffold Angular 17 + PrimeNG, layout tipo Sakai, pantallas de
+  login/proyectos/tablero, cliente SignalR, tests Jasmine y Dockerfile/nginx.
 - **Qué se decidió y validó manualmente:** el diseño hexagonal y el reparto de responsabilidades entre
   capas, la estrategia de indexación fraccionaria con su umbral de rebalanceo, el diseño de los
   índices de base de datos, la elección de SignalR frente a las alternativas, el patrón de exportación
-  dual, el esquema de hashing con salt y pepper y el manejo del pepper en la migración semilla.
-- **Verificación:** todo el flujo se probó de extremo a extremo contra la base real (login, CRUD
-  completo, arrastre con recálculo de posición, propagación por SignalR con dos sesiones y descarga de
-  ambos reportes), tanto en modo desarrollo como con la solución completa en Docker.
+  dual, el esquema de hashing con salt y pepper, el contrato de vecinos en el arrastre del SPA y el
+  manejo del pepper en la migración semilla.
+- **Verificación:** flujo de extremo a extremo (login, CRUD, arrastre, SignalR con dos sesiones y
+  descarga de ambos reportes) y `dotnet test` / `npm test` en verde.
 
 ---
 
-## Pendientes
+## Arquitectura del frontend
 
-- SPA en Angular 17 con PrimeNG y la plantilla Sakai: guardia de ruta, interceptor HTTP, tablero con
-  arrastre, actualización optimista con reversión y descarga de reportes.
-- Servicio del SPA con nginx en `docker-compose.yml`.
-- Pruebas unitarias del frontend (5 según el enunciado).
-- Requisitos deseables: indicador de usuarios conectados al tablero y filtros de tablero en la
-  interfaz (el backend ya acepta `assigneeId`, `priority` y `search` tanto en el tablero como en el
-  reporte).
+El SPA vive en `frontend/` (monorepo), separado de la solución .NET. Usa **separación por capas**:
+
+```text
+frontend/src/app/
+├── core/        auth (JWT, guard, interceptor), layout tipo Sakai
+├── data/        HTTP + BoardRealtimeService (SignalR)
+├── shared/      modelos alineados a DTOs y helpers puros (resolveDropNeighbors)
+└── features/    login, proyectos, tablero kanban
+```
+
+- URLs solo en `src/environments/environment*.ts` (`apiBaseUrl`, `hubUrl`).
+- El arrastre calcula `previousTaskId` / `nextTaskId` y llama a `PATCH /api/tasks/{id}/position`;
+  la UI es optimista y revierte si el servidor responde error/409.
+- SignalR usa el mismo JWT (`?access_token=`), hace `JoinBoard` al entrar al tablero y
+  `LeaveBoard` + `stop()` al destruir el componente.
+- PrimeNG 17 con tema Lara Light Blue y shell inspirado en Sakai (topbar + sidebar + content).
+
+---
+
+## Checklist de verificación
+
+- [ ] `docker compose up -d --build` levanta db + api + web
+- [ ] Login con `admin@ideasgroup.test` / `Admin123*`
+- [ ] CRUD de proyectos con paginación y filtro por nombre
+- [ ] Columnas: alta, rename, reorder; 409 al borrar con tareas
+- [ ] Tareas: alta/edición/baja con prioridad y responsable
+- [ ] Drag & drop persistente tras recargar
+- [ ] Dos sesiones reflejan el movimiento sin recarga
+- [ ] Descarga PDF y Excel con nombre correcto
+- [ ] `dotnet test` y `cd frontend && npm test` pasan
