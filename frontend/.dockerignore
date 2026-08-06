@@ -1,0 +1,10 @@
+# Dependencias de Node; el contexto de build es frontend/
+node_modules
+npm-debug.log
+dist
+.angular
+.git
+.gitignore
+*.md
+.editorconfig
+.vscode

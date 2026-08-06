@@ -42,5 +42,16 @@ services:
     ports:
       - "${API_PORT}:8080"
 
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: scrumboard-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT}:80"
+
 volumes:
   pgdata:
