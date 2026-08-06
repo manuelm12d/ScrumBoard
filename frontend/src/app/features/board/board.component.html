@@ -1,0 +1,134 @@
+<p-toast />
+<p-confirmDialog />
+
+@if (board) {
+  <div class="page-header">
+    <div>
+      <a routerLink="/projects" class="back">← Proyectos</a>
+      <h1>{{ board.projectName }}</h1>
+      <p>Tablero kanban en tiempo real</p>
+    </div>
+    <div class="header-actions">
+      <button pButton type="button" label="Columna" icon="pi pi-plus" class="p-button-outlined" (click)="openCreateColumn()"></button>
+      <button pButton type="button" label="PDF" icon="pi pi-file-pdf" class="p-button-outlined" (click)="downloadReport('pdf')"></button>
+      <button pButton type="button" label="Excel" icon="pi pi-file-excel" class="p-button-outlined" (click)="downloadReport('xlsx')"></button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <input pInputText [(ngModel)]="filterSearch" placeholder="Buscar tareas" (keyup.enter)="applyFilters()" />
+    <p-dropdown
+      [options]="users"
+      [(ngModel)]="filterAssignee"
+      optionLabel="name"
+      optionValue="id"
+      placeholder="Responsable"
+      [showClear]="true"
+      styleClass="filter-dd"
+    />
+    <p-dropdown
+      [options]="priorityOptions"
+      [(ngModel)]="filterPriority"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Prioridad"
+      [showClear]="true"
+      styleClass="filter-dd"
+    />
+    <button pButton type="button" label="Filtrar" icon="pi pi-filter" (click)="applyFilters()"></button>
+    <button pButton type="button" label="Limpiar" class="p-button-text" (click)="clearFilters()"></button>
+  </div>
+
+  <div class="board" [class.loading]="loading">
+    @for (column of board.columns; track column.id) {
+      <section class="column">
+        <header class="column-header">
+          <div>
+            <h2>{{ column.name }}</h2>
+            <span class="count">{{ column.tasks.length }}</span>
+          </div>
+          <div class="column-actions">
+            <button pButton type="button" icon="pi pi-arrow-left" class="p-button-rounded p-button-text p-button-sm" (click)="moveColumn(column, -1)" pTooltip="Mover izquierda"></button>
+            <button pButton type="button" icon="pi pi-arrow-right" class="p-button-rounded p-button-text p-button-sm" (click)="moveColumn(column, 1)" pTooltip="Mover derecha"></button>
+            <button pButton type="button" icon="pi pi-pencil" class="p-button-rounded p-button-text p-button-sm" (click)="openEditColumn(column)"></button>
+            <button pButton type="button" icon="pi pi-trash" class="p-button-rounded p-button-text p-button-sm p-button-danger" (click)="confirmDeleteColumn(column)"></button>
+            <button pButton type="button" icon="pi pi-plus" class="p-button-rounded p-button-text p-button-sm" (click)="openCreateTask(column.id)"></button>
+          </div>
+        </header>
+
+        <div
+          class="task-list"
+          cdkDropList
+          [id]="column.id"
+          [cdkDropListData]="column.tasks"
+          [cdkDropListConnectedTo]="connectedDropLists"
+          (cdkDropListDropped)="onTaskDrop($event, column)"
+        >
+          @for (task of column.tasks; track task.id) {
+            <article class="task-card" cdkDrag>
+              <div class="task-top">
+                <strong>{{ task.title }}</strong>
+                <p-tag [value]="priorityLabel(task.priority)" [severity]="prioritySeverity(task.priority)" />
+              </div>
+              @if (task.description) {
+                <p class="task-desc">{{ task.description }}</p>
+              }
+              <div class="task-meta">
+                <span>{{ task.assigneeName || 'Sin responsable' }}</span>
+                <div>
+                  <button pButton type="button" icon="pi pi-pencil" class="p-button-rounded p-button-text p-button-sm" (click)="openEditTask(task)"></button>
+                  <button pButton type="button" icon="pi pi-trash" class="p-button-rounded p-button-text p-button-sm p-button-danger" (click)="confirmDeleteTask(task)"></button>
+                </div>
+              </div>
+            </article>
+          } @empty {
+            <div class="empty-column">Suelta tareas aquí</div>
+          }
+        </div>
+      </section>
+    } @empty {
+      <div class="empty-board">
+        <p>Este proyecto aún no tiene columnas.</p>
+        <button pButton type="button" label="Crear primera columna" icon="pi pi-plus" (click)="openCreateColumn()"></button>
+      </div>
+    }
+  </div>
+}
+
+<p-dialog [(visible)]="columnDialog" [header]="editingColumn ? 'Editar columna' : 'Nueva columna'" [modal]="true" [style]="{ width: '24rem' }">
+  <form [formGroup]="columnForm" class="form-grid">
+    <label>Nombre</label>
+    <input pInputText formControlName="name" />
+  </form>
+  <ng-template pTemplate="footer">
+    <button pButton type="button" label="Cancelar" class="p-button-text" (click)="columnDialog = false"></button>
+    <button pButton type="button" label="Guardar" icon="pi pi-check" (click)="saveColumn()"></button>
+  </ng-template>
+</p-dialog>
+
+<p-dialog [(visible)]="taskDialog" [header]="editingTask ? 'Editar tarea' : 'Nueva tarea'" [modal]="true" [style]="{ width: '28rem' }">
+  <form [formGroup]="taskForm" class="form-grid">
+    <label>Título</label>
+    <input pInputText formControlName="title" />
+
+    <label>Descripción</label>
+    <textarea pInputTextarea rows="3" formControlName="description"></textarea>
+
+    <label>Prioridad</label>
+    <p-dropdown [options]="priorityOptions" formControlName="priority" optionLabel="label" optionValue="value" />
+
+    <label>Responsable</label>
+    <p-dropdown
+      [options]="users"
+      formControlName="assigneeId"
+      optionLabel="name"
+      optionValue="id"
+      placeholder="Sin responsable"
+      [showClear]="true"
+    />
+  </form>
+  <ng-template pTemplate="footer">
+    <button pButton type="button" label="Cancelar" class="p-button-text" (click)="taskDialog = false"></button>
+    <button pButton type="button" label="Guardar" icon="pi pi-check" (click)="saveTask()"></button>
+  </ng-template>
+</p-dialog>
