@@ -492,6 +492,7 @@ registrados.
   manejo del pepper en la migración semilla.
 - **Verificación:** flujo de extremo a extremo (login, CRUD, arrastre, SignalR con dos sesiones y
   descarga de ambos reportes) y `dotnet test` / `npm test` en verde.
+  Pruebas de cada endpoint con Postman, y el frontend con el navegador web
 
 ---
 
