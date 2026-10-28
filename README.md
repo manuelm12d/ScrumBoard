@@ -1,7 +1,6 @@
 # ScrumBoard — Gestión ágil (Angular 17 + .NET 8)
 
-Aplicativo web de gestión de proyectos ágiles solicitado en la prueba técnica
-**IDEASGROUP-REM-LAT-26-2907**: proyectos, columnas configurables, tablero kanban con orden
+Aplicativo web de gestión de proyectos ágiles solicitado en la prueba técnica: proyectos, columnas configurables, tablero kanban con orden
 persistente, sincronización en tiempo real y reporte del proyecto en PDF y Excel.
 
 > **Estado:** solución completa. Backend hexagonal (.NET 8 + PostgreSQL + SignalR + QuestPDF/ClosedXML)
